@@ -1,0 +1,132 @@
+blueprint:
+  name: Garage Door Auto Close with Activity Timer and Obstruction Check
+  description: >
+    Auto-close a garage door after a visible timer expires. Activity sensors
+    reset the timer. Obstruction sensors prevent closing and can trigger the
+    same optional notification action.
+  domain: automation
+
+  input:
+    garage_name:
+      name: Garage Name
+      default: Garage Door
+      selector:
+        text:
+
+    garage_door:
+      name: Garage Door Cover
+      selector:
+        entity:
+          domain: cover
+
+    activity_sensors:
+      name: Activity Sensors
+      description: Sensors that reset the countdown timer.
+      selector:
+        entity:
+          domain: binary_sensor
+          multiple: true
+
+    obstruction_sensors:
+      name: Obstruction Sensors
+      description: Sensors that block auto-close if active.
+      default: []
+      selector:
+        entity:
+          domain: binary_sensor
+          multiple: true
+
+    auto_close_timer:
+      name: Timer Helper
+      description: Existing timer helper used as the visible countdown.
+      selector:
+        entity:
+          domain: timer
+
+    notification_action:
+      name: Notification Action
+      description: >
+        Optional. Use {{ notification_message }} in the notification message.
+      default: []
+      selector:
+        action: {}
+
+mode: restart
+
+trigger:
+  - platform: state
+    entity_id: !input garage_door
+    to: "open"
+    id: door_opened
+
+  - platform: state
+    entity_id: !input garage_door
+    to: "closed"
+    id: door_closed
+
+  - platform: state
+    entity_id: !input activity_sensors
+    to: "on"
+    id: activity_detected
+
+  - platform: event
+    event_type: timer.finished
+    event_data:
+      entity_id: !input auto_close_timer
+    id: timer_finished
+
+condition: []
+
+variables:
+  garage_name: !input garage_name
+
+action:
+  - choose:
+      - conditions:
+          - condition: trigger
+            id:
+              - door_opened
+              - activity_detected
+          - condition: state
+            entity_id: !input garage_door
+            state: "open"
+        sequence:
+          - service: timer.start
+            target:
+              entity_id: !input auto_close_timer
+
+      - conditions:
+          - condition: trigger
+            id: door_closed
+        sequence:
+          - service: timer.cancel
+            target:
+              entity_id: !input auto_close_timer
+
+      - conditions:
+          - condition: trigger
+            id: timer_finished
+          - condition: state
+            entity_id: !input garage_door
+            state: "open"
+        sequence:
+          - choose:
+              - conditions:
+                  - condition: state
+                    entity_id: !input obstruction_sensors
+                    state: "on"
+                    match: any
+                sequence:
+                  - variables:
+                      notification_message: >
+                        {{ garage_name }} auto-close was prevented because an obstruction was detected.
+                  - sequence: !input notification_action
+            default:
+              - service: cover.close_cover
+                target:
+                  entity_id: !input garage_door
+
+              - variables:
+                  notification_message: >
+                    {{ garage_name }} automatically closed.
+              - sequence: !input notification_action
