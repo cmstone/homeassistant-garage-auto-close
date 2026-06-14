@@ -1,0 +1,1 @@
+# homeassistant-garage-auto-close
