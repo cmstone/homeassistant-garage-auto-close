@@ -14,7 +14,7 @@ Activity sensors reset the countdown timer. Obstruction sensors prevent auto-clo
 
 A Home Assistant automation blueprint for managing indoor camera privacy based on presence and sleep state.
 
-Privacy is enabled when someone is home and awake, disabled when everyone is away, and disabled while sleeping so the camera can record overnight. Sleep mode is determined by both a configured time window and at least one active sleep indicator, such as a white noise machine. Optional notifications can be sent whenever the blueprint changes privacy mode, including what changed and what triggered it.
+Privacy is enabled when all selected presence entities are present and the household is awake, disabled when all selected presence entities are absent, and disabled while sleeping so the camera can record overnight. Mixed presence states do not change camera privacy. Sleep mode is determined by both a configured time window and at least one active sleep indicator, such as a white noise machine. Optional notifications can be sent whenever the blueprint changes privacy mode, including what changed and what triggered it.
 
 ## Features
 
@@ -29,8 +29,9 @@ Privacy is enabled when someone is home and awake, disabled when everyone is awa
 
 ### Indoor Camera Privacy Manager
 
-- Enables camera privacy while someone is home and awake
-- Disables camera privacy while everyone is away
+- Enables camera privacy only when all selected presence entities are present and the household is awake
+- Disables camera privacy only when all selected presence entities are absent
+- Leaves privacy unchanged when presence entities are mixed between present and absent
 - Disables privacy while sleeping so recording can run overnight
 - Requires both a sleep time window and an active sleep indicator
 - Supports a white noise machine, sleep helper, bed sensor, fan, or similar entity as the sleep indicator
@@ -92,8 +93,7 @@ The blueprint starts this timer whenever the door opens or activity is detected 
 
 | Input | Description |
 | --- | --- |
-| Presence Entities | People, device trackers, or binary sensors that indicate home/presence state |
-| Presence Mode | Whether any selected entity or all selected entities must be active |
+| Presence Entities | People, device trackers, or binary sensors. All selected entities must be active to be considered present, and all must be inactive to be considered absent |
 | Sleep Start Time | Start of the sleep window |
 | Sleep End Time | End of the sleep window |
 | Sleep Indicator Entities | White noise machine, sleep helper, bed sensor, fan, or similar |
@@ -102,7 +102,7 @@ The blueprint starts this timer whenever the door opens or activity is detected 
 | Enable Recording Action | Optional action to enable recording, detections, or alerts |
 | Disable Recording Action | Optional action to disable recording, detections, or alerts |
 | Notification Action | Optional action sequence for notifications |
-| Away Delay | Delay after presence clears before privacy is disabled |
+| Away Delay | Delay after all selected presence entities are absent before privacy is disabled |
 | Manual Override Helper | Optional input_boolean that pauses automation while on |
 | Guest Mode Helper | Optional input_boolean that always keeps privacy enabled while on |
 | Vacation Mode Helper | Optional input_boolean that always disables privacy and enables recording while on |
@@ -111,8 +111,9 @@ The blueprint starts this timer whenever the door opens or activity is detected 
 
 | State | Privacy | Recording |
 | --- | --- | --- |
-| Home and awake | Enabled | Disabled, if configured |
-| Away | Disabled | Enabled, if configured |
+| All presence entities present and awake | Enabled | Disabled, if configured |
+| All presence entities absent | Disabled | Enabled, if configured |
+| Mixed presence state | Unchanged | Unchanged |
 | Sleeping | Disabled | Enabled, if configured |
 | Guest mode | Enabled | Disabled, if configured |
 | Vacation mode | Disabled | Enabled, if configured |
@@ -128,7 +129,7 @@ The privacy blueprint exposes these variables before running the optional notifi
 | `notification_message` | Human-readable notification text |
 | `privacy_state` | Final privacy state, either `enabled` or `disabled` |
 | `recording_state` | Final recording state, either `enabled` or `disabled` |
-| `trigger_reason` | Reason category, such as `presence`, `away`, `sleep`, `guest_mode`, or `vacation_mode` |
+| `trigger_reason` | Reason category, such as `all_present`, `all_absent`, `sleep`, `guest_mode`, or `vacation_mode` |
 | `trigger_entity` | Entity ID that triggered the automation, when available |
 | `trigger_name` | Friendly name of the triggering entity, when available |
 | `trigger_from` | Previous state of the triggering entity, when available |
