@@ -5,7 +5,8 @@ blueprint:
     someone is home and awake, disabled while everyone is away, and disabled
     while sleeping so the camera can record overnight. Sleep mode requires both
     a time window and at least one active sleep indicator, such as a white noise
-    machine. Optional notifications can be sent for each privacy mode change.
+    machine. Optional notifications can be sent for each privacy mode change,
+    including the final privacy state and the trigger that caused the change.
   domain: automation
 
   input:
@@ -80,8 +81,10 @@ blueprint:
       name: Notification Action
       description: >
         Optional action sequence for notifications. The blueprint exposes
-        notification_event and notification_message variables before running
-        this action.
+        notification_title, notification_message, notification_event,
+        privacy_state, recording_state, trigger_reason, trigger_entity,
+        trigger_name, trigger_from, trigger_to, and notification_timestamp
+        variables before running this action.
       default: []
       selector:
         action:
@@ -194,6 +197,24 @@ variables:
     {{ guest_mode not in ['', none] and is_state(guest_mode, 'on') }}
   vacation_active: >
     {{ vacation_mode not in ['', none] and is_state(vacation_mode, 'on') }}
+  base_trigger_entity: >
+    {{ trigger.entity_id if trigger is defined and trigger.entity_id is defined else '' }}
+  base_trigger_name: >
+    {% if trigger is defined and trigger.to_state is defined and trigger.to_state is not none %}
+      {{ trigger.to_state.name }}
+    {% elif trigger is defined and trigger.entity_id is defined %}
+      {{ state_attr(trigger.entity_id, 'friendly_name') or trigger.entity_id }}
+    {% elif trigger is defined and trigger.platform is defined %}
+      {{ trigger.platform }}
+    {% else %}
+      Unknown
+    {% endif %}
+  base_trigger_from: >
+    {{ trigger.from_state.state if trigger is defined and trigger.from_state is defined and trigger.from_state is not none else '' }}
+  base_trigger_to: >
+    {{ trigger.to_state.state if trigger is defined and trigger.to_state is defined and trigger.to_state is not none else '' }}
+  base_notification_timestamp: >
+    {{ now().strftime('%Y-%m-%d %H:%M:%S') }}
 
 condition:
   - condition: template
@@ -210,8 +231,19 @@ action:
           - choose: []
             default: !input recording_enable_action
           - variables:
+              notification_title: Indoor Camera Privacy
               notification_event: vacation_mode
-              notification_message: "Camera privacy disabled and recording enabled because vacation mode is active."
+              privacy_state: disabled
+              recording_state: enabled
+              trigger_reason: vacation_mode
+              trigger_entity: "{{ base_trigger_entity }}"
+              trigger_name: "{{ base_trigger_name }}"
+              trigger_from: "{{ base_trigger_from }}"
+              trigger_to: "{{ base_trigger_to }}"
+              notification_timestamp: "{{ base_notification_timestamp }}"
+              notification_message: >
+                Privacy disabled and recording enabled because vacation mode is active.
+                Trigger: {{ trigger_name }}{% if trigger_entity %} ({{ trigger_entity }}){% endif %}.
           - choose: []
             default: !input notification_action
 
@@ -224,8 +256,19 @@ action:
           - choose: []
             default: !input recording_disable_action
           - variables:
+              notification_title: Indoor Camera Privacy
               notification_event: guest_mode
-              notification_message: "Camera privacy enabled because guest mode is active."
+              privacy_state: enabled
+              recording_state: disabled
+              trigger_reason: guest_mode
+              trigger_entity: "{{ base_trigger_entity }}"
+              trigger_name: "{{ base_trigger_name }}"
+              trigger_from: "{{ base_trigger_from }}"
+              trigger_to: "{{ base_trigger_to }}"
+              notification_timestamp: "{{ base_notification_timestamp }}"
+              notification_message: >
+                Privacy enabled because guest mode is active.
+                Trigger: {{ trigger_name }}{% if trigger_entity %} ({{ trigger_entity }}){% endif %}.
           - choose: []
             default: !input notification_action
 
@@ -238,8 +281,19 @@ action:
           - choose: []
             default: !input recording_enable_action
           - variables:
+              notification_title: Indoor Camera Privacy
               notification_event: sleeping
-              notification_message: "Camera privacy disabled and recording enabled because sleep mode is active."
+              privacy_state: disabled
+              recording_state: enabled
+              trigger_reason: sleep
+              trigger_entity: "{{ base_trigger_entity }}"
+              trigger_name: "{{ base_trigger_name }}"
+              trigger_from: "{{ base_trigger_from }}"
+              trigger_to: "{{ base_trigger_to }}"
+              notification_timestamp: "{{ base_notification_timestamp }}"
+              notification_message: >
+                Privacy disabled and recording enabled because sleep mode is active.
+                Trigger: {{ trigger_name }}{% if trigger_entity %} ({{ trigger_entity }}){% endif %}.
           - choose: []
             default: !input notification_action
 
@@ -252,8 +306,19 @@ action:
           - choose: []
             default: !input recording_disable_action
           - variables:
+              notification_title: Indoor Camera Privacy
               notification_event: home_awake
-              notification_message: "Camera privacy enabled because someone is home and awake."
+              privacy_state: enabled
+              recording_state: disabled
+              trigger_reason: presence
+              trigger_entity: "{{ base_trigger_entity }}"
+              trigger_name: "{{ base_trigger_name }}"
+              trigger_from: "{{ base_trigger_from }}"
+              trigger_to: "{{ base_trigger_to }}"
+              notification_timestamp: "{{ base_notification_timestamp }}"
+              notification_message: >
+                Privacy enabled because someone is home and awake.
+                Trigger: {{ trigger_name }}{% if trigger_entity %} ({{ trigger_entity }}){% endif %}.
           - choose: []
             default: !input notification_action
 
@@ -276,7 +341,18 @@ action:
       - choose: []
         default: !input recording_enable_action
       - variables:
+          notification_title: Indoor Camera Privacy
           notification_event: away
-          notification_message: "Camera privacy disabled and recording enabled because no presence is active."
+          privacy_state: disabled
+          recording_state: enabled
+          trigger_reason: away
+          trigger_entity: "{{ base_trigger_entity }}"
+          trigger_name: "{{ base_trigger_name }}"
+          trigger_from: "{{ base_trigger_from }}"
+          trigger_to: "{{ base_trigger_to }}"
+          notification_timestamp: "{{ base_notification_timestamp }}"
+          notification_message: >
+            Privacy disabled and recording enabled because no selected presence entity is active.
+            Trigger: {{ trigger_name }}{% if trigger_entity %} ({{ trigger_entity }}){% endif %}.
       - choose: []
         default: !input notification_action
