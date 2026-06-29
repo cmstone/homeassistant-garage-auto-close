@@ -46,7 +46,6 @@ blueprint:
     sleep_indicators:
       name: Sleep Indicator Entities
       description: White noise machine, sleep mode helper, bed sensor, bedroom fan, or similar. Sleep requires the time window and at least one of these entities to be active.
-      default: []
       selector:
         entity:
           multiple: true
@@ -135,15 +134,6 @@ trigger:
 
   - platform: time
     at: !input sleep_end
-
-  - platform: state
-    entity_id: !input guest_mode
-
-  - platform: state
-    entity_id: !input vacation_mode
-
-  - platform: state
-    entity_id: !input manual_override
 
   - platform: homeassistant
     event: start
