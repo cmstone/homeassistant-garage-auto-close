@@ -2,22 +2,21 @@ blueprint:
   name: Indoor Camera Privacy Manager
   description: >
     Automatically manages privacy for an indoor camera. Privacy is enabled when
-    all selected presence entities are present and the household is awake,
-    disabled when all selected presence entities are absent, and disabled while
-    sleeping so the camera can record overnight. Sleep mode requires both a time
-    window and at least one active sleep indicator, such as a white noise
-    machine. Optional notifications can be sent for each privacy mode change,
-    including the final privacy state and the trigger that caused the change.
+    any selected presence entity is present and the household is awake, disabled
+    when all selected presence entities are absent, and disabled while sleeping
+    so the camera can record overnight. Sleep mode requires both a time window
+    and at least one active sleep indicator, such as a white noise machine.
+    Optional notifications can be sent for each privacy mode change, including
+    the final privacy state and the trigger that caused the change.
   domain: automation
 
   input:
     presence_entities:
       name: Presence Entities
       description: >
-        People, device trackers, or binary sensors that indicate presence. All
-        selected entities must be active to be considered home/present, and all
-        selected entities must be inactive to be considered away/absent. Mixed
-        states do not change camera privacy.
+        People, device trackers, or binary sensors that indicate presence. Any
+        selected entity active means someone is home/present. All selected
+        entities must be inactive to be considered away/absent.
       selector:
         entity:
           multiple: true
@@ -153,8 +152,8 @@ variables:
       | count }}
   total_presence_count: >
     {{ expand(presence_entities) | list | count }}
-  all_present: >
-    {{ total_presence_count | int(0) > 0 and active_presence_count | int(0) == total_presence_count | int(0) }}
+  any_present: >
+    {{ total_presence_count | int(0) > 0 and active_presence_count | int(0) > 0 }}
   all_absent: >
     {{ total_presence_count | int(0) > 0 and active_presence_count | int(0) == 0 }}
   in_sleep_window: >
@@ -280,10 +279,10 @@ action:
           - choose: []
             default: !input notification_action
 
-      - alias: All present and awake
+      - alias: Any present and awake
         conditions:
           - condition: template
-            value_template: "{{ all_present | bool(false) }}"
+            value_template: "{{ any_present | bool(false) }}"
         sequence:
           - choose: []
             default: !input privacy_enable_action
@@ -294,14 +293,14 @@ action:
               notification_event: home_awake
               privacy_state: enabled
               recording_state: disabled
-              trigger_reason: all_present
+              trigger_reason: any_present
               trigger_entity: "{{ base_trigger_entity }}"
               trigger_name: "{{ base_trigger_name }}"
               trigger_from: "{{ base_trigger_from }}"
               trigger_to: "{{ base_trigger_to }}"
               notification_timestamp: "{{ base_notification_timestamp }}"
               notification_message: >
-                Privacy enabled because all selected presence entities are present and the household is awake.
+                Privacy enabled because at least one selected presence entity is present and the household is awake.
                 Trigger: {{ trigger_name }}{% if trigger_entity %} ({{ trigger_entity }}){% endif %}.
           - choose: []
             default: !input notification_action
