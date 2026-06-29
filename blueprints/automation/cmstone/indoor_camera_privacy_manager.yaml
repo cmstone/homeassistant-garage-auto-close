@@ -154,9 +154,9 @@ variables:
   total_presence_count: >
     {{ expand(presence_entities) | list | count }}
   all_present: >
-    {{ total_presence_count > 0 and active_presence_count == total_presence_count }}
+    {{ total_presence_count | int(0) > 0 and active_presence_count | int(0) == total_presence_count | int(0) }}
   all_absent: >
-    {{ total_presence_count > 0 and active_presence_count == 0 }}
+    {{ total_presence_count | int(0) > 0 and active_presence_count | int(0) == 0 }}
   in_sleep_window: >
     {% set current_time = now().strftime('%H:%M:%S') %}
     {% if sleep_start < sleep_end %}
@@ -165,12 +165,12 @@ variables:
       {{ current_time >= sleep_start or current_time < sleep_end }}
     {% endif %}
   sleep_indicator_active: >
-    {{ sleep_indicators | count > 0 and expand(sleep_indicators)
+    {{ expand(sleep_indicators)
       | selectattr('state', 'in', active_states)
       | list
       | count > 0 }}
   sleeping: >
-    {{ in_sleep_window and sleep_indicator_active }}
+    {{ in_sleep_window | bool(false) and sleep_indicator_active | bool(false) }}
   override_active: >
     {{ manual_override not in ['', none] and is_state(manual_override, 'on') }}
   guest_active: >
@@ -198,13 +198,14 @@ variables:
 
 condition:
   - condition: template
-    value_template: "{{ not override_active }}"
+    value_template: "{{ not override_active | bool(false) }}"
 
 action:
   - choose:
-      - conditions:
+      - alias: Vacation mode
+        conditions:
           - condition: template
-            value_template: "{{ vacation_active }}"
+            value_template: "{{ vacation_active | bool(false) }}"
         sequence:
           - choose: []
             default: !input privacy_disable_action
@@ -227,9 +228,10 @@ action:
           - choose: []
             default: !input notification_action
 
-      - conditions:
+      - alias: Guest mode
+        conditions:
           - condition: template
-            value_template: "{{ guest_active }}"
+            value_template: "{{ guest_active | bool(false) }}"
         sequence:
           - choose: []
             default: !input privacy_enable_action
@@ -252,9 +254,10 @@ action:
           - choose: []
             default: !input notification_action
 
-      - conditions:
+      - alias: Sleeping
+        conditions:
           - condition: template
-            value_template: "{{ sleeping }}"
+            value_template: "{{ sleeping | bool(false) }}"
         sequence:
           - choose: []
             default: !input privacy_disable_action
@@ -277,9 +280,10 @@ action:
           - choose: []
             default: !input notification_action
 
-      - conditions:
+      - alias: All present and awake
+        conditions:
           - condition: template
-            value_template: "{{ all_present }}"
+            value_template: "{{ all_present | bool(false) }}"
         sequence:
           - choose: []
             default: !input privacy_enable_action
@@ -302,33 +306,37 @@ action:
           - choose: []
             default: !input notification_action
 
-    default:
-      - delay: !input away_delay
-      - condition: template
-        value_template: >
-          {% set active_count = expand(presence_entities)
-            | selectattr('state', 'in', active_states)
-            | list
-            | count %}
-          {% set total_count = expand(presence_entities) | list | count %}
-          {{ total_count > 0 and active_count == 0 }}
-      - choose: []
-        default: !input privacy_disable_action
-      - choose: []
-        default: !input recording_enable_action
-      - variables:
-          notification_title: Indoor Camera Privacy
-          notification_event: away
-          privacy_state: disabled
-          recording_state: enabled
-          trigger_reason: all_absent
-          trigger_entity: "{{ base_trigger_entity }}"
-          trigger_name: "{{ base_trigger_name }}"
-          trigger_from: "{{ base_trigger_from }}"
-          trigger_to: "{{ base_trigger_to }}"
-          notification_timestamp: "{{ base_notification_timestamp }}"
-          notification_message: >
-            Privacy disabled and recording enabled because all selected presence entities are absent.
-            Trigger: {{ trigger_name }}{% if trigger_entity %} ({{ trigger_entity }}){% endif %}.
-      - choose: []
-        default: !input notification_action
+      - alias: All absent
+        conditions:
+          - condition: template
+            value_template: "{{ all_absent | bool(false) }}"
+        sequence:
+          - delay: !input away_delay
+          - condition: template
+            value_template: >
+              {% set active_count = expand(presence_entities)
+                | selectattr('state', 'in', active_states)
+                | list
+                | count %}
+              {% set total_count = expand(presence_entities) | list | count %}
+              {{ total_count | int(0) > 0 and active_count | int(0) == 0 }}
+          - choose: []
+            default: !input privacy_disable_action
+          - choose: []
+            default: !input recording_enable_action
+          - variables:
+              notification_title: Indoor Camera Privacy
+              notification_event: away
+              privacy_state: disabled
+              recording_state: enabled
+              trigger_reason: all_absent
+              trigger_entity: "{{ base_trigger_entity }}"
+              trigger_name: "{{ base_trigger_name }}"
+              trigger_from: "{{ base_trigger_from }}"
+              trigger_to: "{{ base_trigger_to }}"
+              notification_timestamp: "{{ base_notification_timestamp }}"
+              notification_message: >
+                Privacy disabled and recording enabled because all selected presence entities are absent.
+                Trigger: {{ trigger_name }}{% if trigger_entity %} ({{ trigger_entity }}){% endif %}.
+          - choose: []
+            default: !input notification_action
