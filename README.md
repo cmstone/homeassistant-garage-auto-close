@@ -14,7 +14,7 @@ Activity sensors reset the countdown timer. Obstruction sensors prevent auto-clo
 
 A Home Assistant automation blueprint for managing indoor camera privacy based on presence and sleep state.
 
-Privacy is enabled when someone is home and awake, disabled when everyone is away, and disabled while sleeping so the camera can record overnight. Sleep mode is determined by both a configured time window and at least one active sleep indicator, such as a white noise machine. Optional notifications can be sent whenever the blueprint changes privacy mode.
+Privacy is enabled when someone is home and awake, disabled when everyone is away, and disabled while sleeping so the camera can record overnight. Sleep mode is determined by both a configured time window and at least one active sleep indicator, such as a white noise machine. Optional notifications can be sent whenever the blueprint changes privacy mode, including what changed and what triggered it.
 
 ## Features
 
@@ -36,6 +36,7 @@ Privacy is enabled when someone is home and awake, disabled when everyone is awa
 - Supports a white noise machine, sleep helper, bed sensor, fan, or similar entity as the sleep indicator
 - Supports optional manual override, guest mode, and vacation mode helpers
 - Supports optional notifications for privacy mode changes
+- Includes notification variables for privacy state, recording state, trigger reason, trigger entity, from/to state, and timestamp
 - Uses action selectors so it can work with many camera platforms and helper entities
 
 ## Repository structure
@@ -122,16 +123,34 @@ The privacy blueprint exposes these variables before running the optional notifi
 
 | Variable | Description |
 | --- | --- |
+| `notification_title` | Suggested title for the notification |
 | `notification_event` | Machine-readable event name, such as `home_awake`, `away`, `sleeping`, `guest_mode`, or `vacation_mode` |
 | `notification_message` | Human-readable notification text |
+| `privacy_state` | Final privacy state, either `enabled` or `disabled` |
+| `recording_state` | Final recording state, either `enabled` or `disabled` |
+| `trigger_reason` | Reason category, such as `presence`, `away`, `sleep`, `guest_mode`, or `vacation_mode` |
+| `trigger_entity` | Entity ID that triggered the automation, when available |
+| `trigger_name` | Friendly name of the triggering entity, when available |
+| `trigger_from` | Previous state of the triggering entity, when available |
+| `trigger_to` | New state of the triggering entity, when available |
+| `notification_timestamp` | Timestamp when the notification variables were created |
 
 Example action:
 
 ```yaml
 - service: notify.mobile_app_your_phone
   data:
-    title: Camera Privacy
-    message: "{{ notification_message }}"
+    title: "{{ notification_title }}"
+    message: >
+      {{ notification_message }}
+
+      Privacy: {{ privacy_state }}
+      Recording: {{ recording_state }}
+      Reason: {{ trigger_reason }}
+      Trigger: {{ trigger_name }}{% if trigger_entity %} ({{ trigger_entity }}){% endif %}
+      From: {{ trigger_from }}
+      To: {{ trigger_to }}
+      Time: {{ notification_timestamp }}
 ```
 
 ## Garage notification action
