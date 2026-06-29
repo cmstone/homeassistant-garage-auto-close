@@ -5,7 +5,7 @@ blueprint:
     someone is home and awake, disabled while everyone is away, and disabled
     while sleeping so the camera can record overnight. Sleep mode requires both
     a time window and at least one active sleep indicator, such as a white noise
-    machine.
+    machine. Optional notifications can be sent for each privacy mode change.
   domain: automation
 
   input:
@@ -76,6 +76,16 @@ blueprint:
       selector:
         action:
 
+    notification_action:
+      name: Notification Action
+      description: >
+        Optional action sequence for notifications. The blueprint exposes
+        notification_event and notification_message variables before running
+        this action.
+      default: []
+      selector:
+        action:
+
     away_delay:
       name: Away Delay
       description: Wait this long after presence clears before disabling privacy.
@@ -122,6 +132,15 @@ trigger:
 
   - platform: time
     at: !input sleep_end
+
+  - platform: state
+    entity_id: !input guest_mode
+
+  - platform: state
+    entity_id: !input vacation_mode
+
+  - platform: state
+    entity_id: !input manual_override
 
   - platform: homeassistant
     event: start
@@ -190,6 +209,11 @@ action:
             default: !input privacy_disable_action
           - choose: []
             default: !input recording_enable_action
+          - variables:
+              notification_event: vacation_mode
+              notification_message: "Camera privacy disabled and recording enabled because vacation mode is active."
+          - choose: []
+            default: !input notification_action
 
       - conditions:
           - condition: template
@@ -199,6 +223,11 @@ action:
             default: !input privacy_enable_action
           - choose: []
             default: !input recording_disable_action
+          - variables:
+              notification_event: guest_mode
+              notification_message: "Camera privacy enabled because guest mode is active."
+          - choose: []
+            default: !input notification_action
 
       - conditions:
           - condition: template
@@ -208,6 +237,11 @@ action:
             default: !input privacy_disable_action
           - choose: []
             default: !input recording_enable_action
+          - variables:
+              notification_event: sleeping
+              notification_message: "Camera privacy disabled and recording enabled because sleep mode is active."
+          - choose: []
+            default: !input notification_action
 
       - conditions:
           - condition: template
@@ -217,6 +251,11 @@ action:
             default: !input privacy_enable_action
           - choose: []
             default: !input recording_disable_action
+          - variables:
+              notification_event: home_awake
+              notification_message: "Camera privacy enabled because someone is home and awake."
+          - choose: []
+            default: !input notification_action
 
     default:
       - delay: !input away_delay
@@ -236,3 +275,8 @@ action:
         default: !input privacy_disable_action
       - choose: []
         default: !input recording_enable_action
+      - variables:
+          notification_event: away
+          notification_message: "Camera privacy disabled and recording enabled because no presence is active."
+      - choose: []
+        default: !input notification_action
