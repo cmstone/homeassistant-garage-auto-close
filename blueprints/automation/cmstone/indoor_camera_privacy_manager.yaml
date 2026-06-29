@@ -1,0 +1,238 @@
+blueprint:
+  name: Indoor Camera Privacy Manager
+  description: >
+    Automatically manages privacy for an indoor camera. Privacy is enabled when
+    someone is home and awake, disabled while everyone is away, and disabled
+    while sleeping so the camera can record overnight. Sleep mode requires both
+    a time window and at least one active sleep indicator, such as a white noise
+    machine.
+  domain: automation
+
+  input:
+    presence_entities:
+      name: Presence Entities
+      description: People, device trackers, or binary sensors that indicate someone is home or present.
+      selector:
+        entity:
+          multiple: true
+
+    presence_mode:
+      name: Presence Mode
+      description: Choose whether one active presence entity is enough or all selected entities must be active.
+      default: anyone_home
+      selector:
+        select:
+          options:
+            - label: Anyone home
+              value: anyone_home
+            - label: Everyone home
+              value: everyone_home
+
+    sleep_start:
+      name: Sleep Start Time
+      description: Start of the sleep window.
+      default: "22:00:00"
+      selector:
+        time:
+
+    sleep_end:
+      name: Sleep End Time
+      description: End of the sleep window.
+      default: "07:00:00"
+      selector:
+        time:
+
+    sleep_indicators:
+      name: Sleep Indicator Entities
+      description: White noise machine, sleep mode helper, bed sensor, bedroom fan, or similar. Sleep requires the time window and at least one of these entities to be active.
+      default: []
+      selector:
+        entity:
+          multiple: true
+
+    privacy_enable_action:
+      name: Enable Privacy Action
+      description: Action to black out, cover, disable, or otherwise make the indoor camera private.
+      selector:
+        action:
+
+    privacy_disable_action:
+      name: Disable Privacy Action
+      description: Action to uncover, enable, or otherwise make the indoor camera available for monitoring.
+      selector:
+        action:
+
+    recording_enable_action:
+      name: Enable Recording Action
+      description: Optional action to enable recording, detections, or alerts.
+      default: []
+      selector:
+        action:
+
+    recording_disable_action:
+      name: Disable Recording Action
+      description: Optional action to disable recording, detections, or alerts.
+      default: []
+      selector:
+        action:
+
+    away_delay:
+      name: Away Delay
+      description: Wait this long after presence clears before disabling privacy.
+      default:
+        minutes: 2
+      selector:
+        duration:
+
+    manual_override:
+      name: Manual Override Helper
+      description: Optional input_boolean. When on, this automation does nothing.
+      default: ""
+      selector:
+        entity:
+          domain: input_boolean
+
+    guest_mode:
+      name: Guest Mode Helper
+      description: Optional input_boolean. When on, privacy always stays enabled.
+      default: ""
+      selector:
+        entity:
+          domain: input_boolean
+
+    vacation_mode:
+      name: Vacation Mode Helper
+      description: Optional input_boolean. When on, privacy stays disabled and recording stays enabled.
+      default: ""
+      selector:
+        entity:
+          domain: input_boolean
+
+mode: restart
+
+trigger:
+  - platform: state
+    entity_id: !input presence_entities
+
+  - platform: state
+    entity_id: !input sleep_indicators
+
+  - platform: time
+    at: !input sleep_start
+
+  - platform: time
+    at: !input sleep_end
+
+  - platform: homeassistant
+    event: start
+
+variables:
+  presence_entities: !input presence_entities
+  presence_mode: !input presence_mode
+  sleep_indicators: !input sleep_indicators
+  sleep_start: !input sleep_start
+  sleep_end: !input sleep_end
+  manual_override: !input manual_override
+  guest_mode: !input guest_mode
+  vacation_mode: !input vacation_mode
+  active_states:
+    - "home"
+    - "on"
+    - "open"
+    - "detected"
+    - "occupied"
+    - "true"
+  active_presence_count: >
+    {{ expand(presence_entities)
+      | selectattr('state', 'in', active_states)
+      | list
+      | count }}
+  total_presence_count: >
+    {{ expand(presence_entities) | list | count }}
+  someone_home: >
+    {% if presence_mode == 'everyone_home' %}
+      {{ total_presence_count > 0 and active_presence_count == total_presence_count }}
+    {% else %}
+      {{ active_presence_count > 0 }}
+    {% endif %}
+  in_sleep_window: >
+    {% set current_time = now().strftime('%H:%M:%S') %}
+    {% if sleep_start < sleep_end %}
+      {{ sleep_start <= current_time < sleep_end }}
+    {% else %}
+      {{ current_time >= sleep_start or current_time < sleep_end }}
+    {% endif %}
+  sleep_indicator_active: >
+    {{ sleep_indicators | count > 0 and expand(sleep_indicators)
+      | selectattr('state', 'in', active_states)
+      | list
+      | count > 0 }}
+  sleeping: >
+    {{ in_sleep_window and sleep_indicator_active }}
+  override_active: >
+    {{ manual_override not in ['', none] and is_state(manual_override, 'on') }}
+  guest_active: >
+    {{ guest_mode not in ['', none] and is_state(guest_mode, 'on') }}
+  vacation_active: >
+    {{ vacation_mode not in ['', none] and is_state(vacation_mode, 'on') }}
+
+condition:
+  - condition: template
+    value_template: "{{ not override_active }}"
+
+action:
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ vacation_active }}"
+        sequence:
+          - choose: []
+            default: !input privacy_disable_action
+          - choose: []
+            default: !input recording_enable_action
+
+      - conditions:
+          - condition: template
+            value_template: "{{ guest_active }}"
+        sequence:
+          - choose: []
+            default: !input privacy_enable_action
+          - choose: []
+            default: !input recording_disable_action
+
+      - conditions:
+          - condition: template
+            value_template: "{{ sleeping }}"
+        sequence:
+          - choose: []
+            default: !input privacy_disable_action
+          - choose: []
+            default: !input recording_enable_action
+
+      - conditions:
+          - condition: template
+            value_template: "{{ someone_home }}"
+        sequence:
+          - choose: []
+            default: !input privacy_enable_action
+          - choose: []
+            default: !input recording_disable_action
+
+    default:
+      - delay: !input away_delay
+      - condition: template
+        value_template: >
+          {% set active_count = expand(presence_entities)
+            | selectattr('state', 'in', active_states)
+            | list
+            | count %}
+          {% set total_count = expand(presence_entities) | list | count %}
+          {% if presence_mode == 'everyone_home' %}
+            {{ not (total_count > 0 and active_count == total_count) }}
+          {% else %}
+            {{ active_count == 0 }}
+          {% endif %}
+      - choose: []
+        default: !input privacy_disable_action
+      - choose: []
+        default: !input recording_enable_action
