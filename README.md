@@ -14,7 +14,7 @@ Activity sensors reset the countdown timer. Obstruction sensors prevent auto-clo
 
 A Home Assistant automation blueprint for managing indoor camera privacy based on presence and sleep state.
 
-Privacy is enabled when someone is home and awake, disabled when everyone is away, and disabled while sleeping so the camera can record overnight. Sleep mode is determined by both a configured time window and at least one active sleep indicator, such as a white noise machine.
+Privacy is enabled when someone is home and awake, disabled when everyone is away, and disabled while sleeping so the camera can record overnight. Sleep mode is determined by both a configured time window and at least one active sleep indicator, such as a white noise machine. Optional notifications can be sent whenever the blueprint changes privacy mode.
 
 ## Features
 
@@ -35,6 +35,7 @@ Privacy is enabled when someone is home and awake, disabled when everyone is awa
 - Requires both a sleep time window and an active sleep indicator
 - Supports a white noise machine, sleep helper, bed sensor, fan, or similar entity as the sleep indicator
 - Supports optional manual override, guest mode, and vacation mode helpers
+- Supports optional notifications for privacy mode changes
 - Uses action selectors so it can work with many camera platforms and helper entities
 
 ## Repository structure
@@ -99,6 +100,7 @@ The blueprint starts this timer whenever the door opens or activity is detected 
 | Disable Privacy Action | Action to uncover, enable, or otherwise make the camera available |
 | Enable Recording Action | Optional action to enable recording, detections, or alerts |
 | Disable Recording Action | Optional action to disable recording, detections, or alerts |
+| Notification Action | Optional action sequence for notifications |
 | Away Delay | Delay after presence clears before privacy is disabled |
 | Manual Override Helper | Optional input_boolean that pauses automation while on |
 | Guest Mode Helper | Optional input_boolean that always keeps privacy enabled while on |
@@ -113,6 +115,24 @@ The blueprint starts this timer whenever the door opens or activity is detected 
 | Sleeping | Disabled | Enabled, if configured |
 | Guest mode | Enabled | Disabled, if configured |
 | Vacation mode | Disabled | Enabled, if configured |
+
+## Indoor camera notification action
+
+The privacy blueprint exposes these variables before running the optional notification action:
+
+| Variable | Description |
+| --- | --- |
+| `notification_event` | Machine-readable event name, such as `home_awake`, `away`, `sleeping`, `guest_mode`, or `vacation_mode` |
+| `notification_message` | Human-readable notification text |
+
+Example action:
+
+```yaml
+- service: notify.mobile_app_your_phone
+  data:
+    title: Camera Privacy
+    message: "{{ notification_message }}"
+```
 
 ## Garage notification action
 
